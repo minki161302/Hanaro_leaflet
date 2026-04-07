@@ -16,6 +16,7 @@ def get_image_base64(img):
 
 @st.cache_data
 def process_images():
+    # 확장자 무관하게 탐색
     cover_path = next((f for f in glob.glob("*") if "표지" in f and f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))), None)
     inner_path = next((f for f in glob.glob("*") if "내지" in f and f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))), None)
     
@@ -26,7 +27,7 @@ def process_images():
     inner = Image.open(inner_path)
     w, h = cover.size
     
-    # 표지 분할 (반으로 갈라 앞/뒤 생성)
+    # 표지 분할 (오른쪽 절반: 앞표지, 왼쪽 절반: 뒤표지)
     back_img = cover.crop((0, 0, w // 2, h))
     front_img = cover.crop((w // 2, 0, w, h))
     
@@ -40,19 +41,17 @@ def process_images():
 imgs = process_images()
 
 if imgs:
+    # f-string 내의 CSS 중괄호는 반드시 {{ }}로 써야 에러가 나지 않습니다.
     st.markdown(f"""
         <style>
-        /* 기본 여백 및 헤더 제거 */
         .main .block-container {{ padding: 0; max-width: 100vw; }}
         header, footer, #MainMenu {{ visibility: hidden; }}
         
-        /* 전체 세로 컨테이너 */
         .vertical-viewer {{
             width: 100vw;
             background-color: #0e1117;
         }}
 
-        /* 각 섹션 설정 */
         .section {{
             width: 100vw;
             display: flex;
@@ -61,17 +60,15 @@ if imgs:
             overflow: hidden;
         }}
 
-        /* 앞표지 & 뒤표지: 화면 높이에 꽉 차게 */
         .cover-section {{
             height: 100vh;
         }}
         
-        /* 내지: 가로로 튀어나오는 부분 처리 */
         .inner-section {{
             height: auto;
-            overflow-x: auto; /* 가로 스크롤 허용 */
+            overflow-x: auto;
             -webkit-overflow-scrolling: touch;
-            display: block; /* 가로 스크롤을 위해 블록화 */
+            display: block;
         }}
 
         .section img {{
@@ -85,15 +82,14 @@ if imgs:
         }}
 
         .inner-section img {{
-            width: auto; /* 가로 길이는 원본 비율 유지 */
-            height: 80vh; /* 내지는 화면 높이의 80% 정도로 설정 (가로로 긴 것 강조) */
-        }
+            width: auto;
+            height: 85vh; /* 내지 높이 조절 */
+        }}
 
-        /* 아래로 튕기는 애니메이션 */
         @keyframes bounce-down {{
-            0%, 20%, 50%, 80%, 100% {{transform: translateY(0);}}
-            40% {{transform: translateY(-30px);}}
-            60% {{transform: translateY(-15px);}}
+            0%, 20%, 50%, 80%, 100% {{ transform: translateY(0); }}
+            40% {{ transform: translateY(-30px); }}
+            60% {{ transform: translateY(-15px); }}
         }}
         .bounce {{
             animation: bounce-down 1.5s ease;
@@ -115,18 +111,14 @@ if imgs:
         </div>
 
         <script>
-        // 최초 진입 시 아래에 내용이 더 있음을 알리기 위해 살짝 아래로 튕기기
-        window.scrollTo({{
-            top: 50,
-            behavior: 'smooth'
-        }});
+        // 세로 스크롤 튕기기 효과
         setTimeout(() => {{
-            window.scrollTo({{
-                top: 0,
-                behavior: 'smooth'
-            }});
-        }}, 600);
+            window.scrollTo({{ top: 60, behavior: 'smooth' }});
+            setTimeout(() => {{
+                window.scrollTo({{ top: 0, behavior: 'smooth' }});
+            }}, 500);
+        }}, 1000);
         </script>
     """, unsafe_allow_html=True)
 else:
-    st.error("파일을 찾을 수 없습니다.")
+    st.error("이미지 파일('표지', '내지' 포함)을 찾을 수 없습니다.")
