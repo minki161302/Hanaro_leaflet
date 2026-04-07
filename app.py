@@ -8,15 +8,15 @@ from io import BytesIO
 # --- 1. 배포 환경 설정 ---
 st.set_page_config(layout="wide", page_title="Mobile Vertical Viewer")
 
-@st.cache_data
+# 이 함수는 캐싱하지 않습니다 (이미지 객체는 해시가 불가능하기 때문)
 def get_image_base64(img):
     buffered = BytesIO()
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
+# 이미지를 처리하는 큰 단위의 함수만 캐싱합니다.
 @st.cache_data
 def process_images():
-    # 확장자 무관하게 탐색
     cover_path = next((f for f in glob.glob("*") if "표지" in f and f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))), None)
     inner_path = next((f for f in glob.glob("*") if "내지" in f and f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))), None)
     
@@ -31,6 +31,7 @@ def process_images():
     back_img = cover.crop((0, 0, w // 2, h))
     front_img = cover.crop((w // 2, 0, w, h))
     
+    # 결과물을 미리 Base64 문자열로 변환하여 딕셔너리로 저장 (문자열은 캐싱이 잘 됩니다)
     return {
         "front": get_image_base64(front_img),
         "inner": get_image_base64(inner),
@@ -41,7 +42,6 @@ def process_images():
 imgs = process_images()
 
 if imgs:
-    # f-string 내의 CSS 중괄호는 반드시 {{ }}로 써야 에러가 나지 않습니다.
     st.markdown(f"""
         <style>
         .main .block-container {{ padding: 0; max-width: 100vw; }}
@@ -83,7 +83,7 @@ if imgs:
 
         .inner-section img {{
             width: auto;
-            height: 85vh; /* 내지 높이 조절 */
+            height: 85vh; 
         }}
 
         @keyframes bounce-down {{
@@ -92,11 +92,11 @@ if imgs:
             60% {{ transform: translateY(-15px); }}
         }}
         .bounce {{
-            animation: bounce-down 1.5s ease;
+            animation: bounce-down 1.2s ease;
         }}
         </style>
 
-        <div class="vertical-viewer" id="main-content">
+        <div class="vertical-viewer">
             <div class="section cover-section bounce">
                 <img src="data:image/png;base64,{imgs['front']}">
             </div>
@@ -111,9 +111,8 @@ if imgs:
         </div>
 
         <script>
-        // 세로 스크롤 튕기기 효과
         setTimeout(() => {{
-            window.scrollTo({{ top: 60, behavior: 'smooth' }});
+            window.scrollTo({{ top: 70, behavior: 'smooth' }});
             setTimeout(() => {{
                 window.scrollTo({{ top: 0, behavior: 'smooth' }});
             }}, 500);
@@ -121,4 +120,4 @@ if imgs:
         </script>
     """, unsafe_allow_html=True)
 else:
-    st.error("이미지 파일('표지', '내지' 포함)을 찾을 수 없습니다.")
+    st.error("이미지를 찾을 수 없습니다. 파일명을 확인해주세요.")
