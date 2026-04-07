@@ -6,9 +6,9 @@ import base64
 from io import BytesIO
 
 # --- 1. 배포 환경 설정 ---
-st.set_page_config(layout="wide", page_title="Mobile Booklet Viewer")
+st.set_page_config(layout="wide", page_title="Mobile Vertical Viewer")
 
-# 이미지를 HTML에 직접 박기 위해 Base64로 변환 (배포 시 경로 문제 해결)
+@st.cache_data
 def get_image_base64(img):
     buffered = BytesIO()
     img.save(buffered, format="PNG")
@@ -16,14 +16,12 @@ def get_image_base64(img):
 
 @st.cache_data
 def process_images():
-    # 확장자 무관하게 '표지', '내지' 키워드 파일 탐색
     cover_path = next((f for f in glob.glob("*") if "표지" in f and f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))), None)
     inner_path = next((f for f in glob.glob("*") if "내지" in f and f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))), None)
     
     if not cover_path or not inner_path:
         return None
 
-    # 이미지 처리 (Pillow)
     cover = Image.open(cover_path)
     inner = Image.open(inner_path)
     w, h = cover.size
@@ -42,81 +40,93 @@ def process_images():
 imgs = process_images()
 
 if imgs:
-    # CSS 및 뷰어 구현
     st.markdown(f"""
         <style>
-        /* 배포 시 상단바 및 여백 완전 제거 */
+        /* 기본 여백 및 헤더 제거 */
         .main .block-container {{ padding: 0; max-width: 100vw; }}
         header, footer, #MainMenu {{ visibility: hidden; }}
         
-        .viewer-container {{
-            display: flex;
-            overflow-x: auto;
-            scroll-snap-type: x mandatory;
-            -webkit-overflow-scrolling: touch;
+        /* 전체 세로 컨테이너 */
+        .vertical-viewer {{
             width: 100vw;
-            height: 100vh;
             background-color: #0e1117;
-            scrollbar-width: none; /* 파이어폭스 */
         }}
-        .viewer-container::-webkit-scrollbar {{ display: none; }} /* 크롬, 사파리 */
 
-        .page {{
-            flex-shrink: 0;
-            scroll-snap-align: start;
-            height: 100vh;
+        /* 각 섹션 설정 */
+        .section {{
+            width: 100vw;
             display: flex;
+            justify-content: center;
             align-items: center;
+            overflow: hidden;
         }}
 
-        .cover-page {{ width: 100vw; justify-content: center; }}
-        .inner-page {{ width: auto; }} 
+        /* 앞표지 & 뒤표지: 화면 높이에 꽉 차게 */
+        .cover-section {{
+            height: 100vh;
+        }}
+        
+        /* 내지: 가로로 튀어나오는 부분 처리 */
+        .inner-section {{
+            height: auto;
+            overflow-x: auto; /* 가로 스크롤 허용 */
+            -webkit-overflow-scrolling: touch;
+            display: block; /* 가로 스크롤을 위해 블록화 */
+        }}
 
-        .page img {{
-            height: 100%;
-            max-width: none;
-            object-fit: contain;
+        .section img {{
             display: block;
         }}
 
-        /* 안내 문구 */
-        .scroll-guide {{
-            position: fixed;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255,255,255,0.15);
-            color: white;
-            padding: 10px 24px;
-            border-radius: 30px;
-            backdrop-filter: blur(10px);
-            font-size: 14px;
-            z-index: 100;
-            pointer-events: none;
-            animation: fadeOut 1s forwards 4s;
+        .cover-section img {{
+            height: 100%;
+            width: 100%;
+            object-fit: contain;
         }}
-        @keyframes fadeOut {{ from {{opacity: 1;}} to {{opacity: 0;}} }}
+
+        .inner-section img {{
+            width: auto; /* 가로 길이는 원본 비율 유지 */
+            height: 80vh; /* 내지는 화면 높이의 80% 정도로 설정 (가로로 긴 것 강조) */
+        }
+
+        /* 아래로 튕기는 애니메이션 */
+        @keyframes bounce-down {{
+            0%, 20%, 50%, 80%, 100% {{transform: translateY(0);}}
+            40% {{transform: translateY(-30px);}}
+            60% {{transform: translateY(-15px);}}
+        }}
+        .bounce {{
+            animation: bounce-down 1.5s ease;
+        }}
         </style>
 
-        <div class="viewer-container" id="viewer">
-            <div class="page cover-page"><img src="data:image/png;base64,{imgs['front']}"></div>
-            <div class="page inner-page"><img src="data:image/png;base64,{imgs['inner']}"></div>
-            <div class="page cover-page"><img src="data:image/png;base64,{imgs['back']}"></div>
+        <div class="vertical-viewer" id="main-content">
+            <div class="section cover-section bounce">
+                <img src="data:image/png;base64,{imgs['front']}">
+            </div>
+            
+            <div class="section inner-section">
+                <img src="data:image/png;base64,{imgs['inner']}">
+            </div>
+            
+            <div class="section cover-section">
+                <img src="data:image/png;base64,{imgs['back']}">
+            </div>
         </div>
 
-        <div class="scroll-guide">옆으로 넘겨서 보세요 ↔</div>
-
         <script>
-        const viewer = document.getElementById('viewer');
-        
-        // 1. 최초 진입 시 아래/옆으로 살짝 튕기는 Bounce 효과
+        // 최초 진입 시 아래에 내용이 더 있음을 알리기 위해 살짝 아래로 튕기기
+        window.scrollTo({{
+            top: 50,
+            behavior: 'smooth'
+        }});
         setTimeout(() => {{
-            viewer.scrollTo({{ left: 100, behavior: 'smooth' }});
-            setTimeout(() => {{
-                viewer.scrollTo({{ left: 0, behavior: 'smooth' }});
-            }}, 500);
-        }}, 1000);
+            window.scrollTo({{
+                top: 0,
+                behavior: 'smooth'
+            }});
+        }}, 600);
         </script>
     """, unsafe_allow_html=True)
 else:
-    st.error("이미지 파일을 찾을 수 없습니다. 파일명에 '표지', '내지'가 포함되어 있는지 확인해주세요.")
+    st.error("파일을 찾을 수 없습니다.")
